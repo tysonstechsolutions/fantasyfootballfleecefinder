@@ -79,7 +79,7 @@ function Dashboard({ onImportClick }) {
       <div className="grid-4" style={{ marginBottom: '24px' }}>
         <StatCard label="Roster Value" value={totalValue.toLocaleString()} highlight />
         <StatCard label="Players" value={myRoster.players.length} />
-        <StatCard label="Draft Picks" value={myRoster.picks.length} />
+        <StatCard label="Draft Picks" value={myRoster.picks.filter(p => p.year >= 2026).length} />
         <StatCard label="Record" value={`${myRoster.wins}-${myRoster.losses}`} />
       </div>
 
@@ -226,15 +226,15 @@ function Dashboard({ onImportClick }) {
         </div>
       </div>
 
-      {/* Draft Picks */}
-      {myRoster.picks.length > 0 && (
+      {/* Draft Picks - Filter out past years (2025 and earlier) */}
+      {myRoster.picks.filter(p => p.year >= 2026).length > 0 && (
         <div className="card" style={{ marginTop: '20px' }}>
           <div className="card-header">
             <h3>📝 Your Draft Picks</h3>
           </div>
           <div className="card-body">
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {myRoster.picks.map((pick, i) => (
+              {myRoster.picks.filter(p => p.year >= 2026).map((pick, i) => (
                 <span key={i} className="pick-chip">
                   {pick.year} Rd {pick.round}
                   {!pick.isOwnPick && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>({pick.originalOwnerName})</span>}
