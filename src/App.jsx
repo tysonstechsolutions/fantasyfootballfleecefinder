@@ -16,8 +16,10 @@ import PlayerCompare from './components/analysis/PlayerCompare';
 import MockDraft from './components/draft/MockDraft';
 import OfflineIndicator from './components/common/OfflineIndicator';
 import KeyboardShortcutsModal from './components/common/KeyboardShortcutsModal';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
 import { ThemeProvider } from './context/ThemeContext';
+import { ToastProvider } from './context/ToastContext';
 
 // App Context
 const AppContext = createContext();
@@ -181,9 +183,13 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <ToastProvider>
+          <AppContent />
+        </ToastProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
