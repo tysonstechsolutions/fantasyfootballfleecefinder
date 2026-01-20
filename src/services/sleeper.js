@@ -233,10 +233,46 @@ export async function getFullLeagueData(leagueId) {
   };
 }
 
+export function detectLeagueSettings(league) {
+  const rosterPositions = league.rosterPositions || league.roster_positions || [];
+  const scoringSettings = league.scoringSettings || league.scoring_settings || {};
+  const settings = league.settings || {};
+
+  // Detect SuperFlex
+  const hasSuperFlex = rosterPositions.includes('SUPER_FLEX');
+  const qbCount = rosterPositions.filter(pos => pos === 'QB').length;
+  const isSuperFlex = hasSuperFlex || qbCount >= 2;
+
+  // Detect TE Premium
+  const tePremiumBonus = scoringSettings.rec_te_bonus || scoringSettings.bonus_rec_te || 0;
+  const isTEPremium = tePremiumBonus > 0;
+
+  // Detect scoring type
+  const recPoints = scoringSettings.rec || 0;
+  let scoringType = 'standard';
+  if (recPoints >= 0.9) scoringType = 'ppr';
+  else if (recPoints >= 0.4) scoringType = 'half';
+
+  // League size and roster size
+  const leagueSize = league.totalRosters || league.total_rosters || 12;
+  const rosterSize = rosterPositions.length || 0;
+
+  return {
+    isSuperFlex,
+    isTEPremium,
+    scoringType,
+    leagueSize,
+    rosterSize,
+    rosterPositions,
+    scoringSettings
+  };
+}
+
 export default {
   getUser,
   getUserLeagues,
   getFullLeagueData,
   getPlayers,
-  getAllTrades
+  getAllTrades,
+  detectLeagueSettings
 };

@@ -1,6 +1,6 @@
 {
   "name": "fantasy-fleece-finder",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "AI-powered dynasty fantasy football trade analyzer",
   "main": "electron/main.js",
   "author": "Fantasy Fleece Finder",
@@ -14,14 +14,16 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "recharts": "^3.6.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",
-    "vite": "^5.0.0",
+    "concurrently": "^8.2.0",
     "electron": "^28.0.0",
     "electron-builder": "^24.0.0",
-    "concurrently": "^8.2.0",
+    "terser": "^5.46.0",
+    "vite": "^5.0.0",
     "wait-on": "^7.2.0"
   },
   "build": {

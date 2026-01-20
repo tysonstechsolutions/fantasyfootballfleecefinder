@@ -1,7 +1,8 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useApp } from '../App';
 import { getPlayerValue, getPickValue, analyzeTrade, estimatePickTier } from '../services/values';
 import { analyzeTradeAI, suggestBestTrades } from '../services/claude';
+import useDebounce from '../hooks/useDebounce';
 
 function TradeBuilder() {
   const { league, myRoster, opponents, apiKey } = useApp();
@@ -13,15 +14,20 @@ function TradeBuilder() {
   const [loading, setLoading] = useState(false);
   const [loadingType, setLoadingType] = useState('');
   const [tab, setTab] = useState('players');
+  const hasFetchedRef = useRef({});
 
   const partner = opponents.find(r => r.rosterId === partnerId);
 
-  // Auto-suggest trades when partner changes
+  // Debounce partner changes to prevent API spam
+  const debouncedPartnerId = useDebounce(partnerId, 1000);
+
+  // Auto-suggest trades when partner changes (debounced)
   useEffect(() => {
-    if (partner && apiKey) {
+    if (debouncedPartnerId && partner && apiKey && !hasFetchedRef.current[debouncedPartnerId]) {
+      hasFetchedRef.current[debouncedPartnerId] = true;
       handleSuggestTrades();
     }
-  }, [partnerId]);
+  }, [debouncedPartnerId]);
 
   // Add values to players
   const myPlayersWithValue = useMemo(() => {

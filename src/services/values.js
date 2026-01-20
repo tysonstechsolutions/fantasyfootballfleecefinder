@@ -154,4 +154,152 @@ export function analyzeTrade(side1, side2) {
   return { val1, val2, diff, pct, verdict, level };
 }
 
-export default { getPlayerValue, getPickValue, analyzeTrade, estimatePickTier };
+/**
+ * Merge KTC values with static values
+ * KTC values take precedence when available
+ * @param {Object} ktcValues - Values from KTC API
+ * @returns {Object} Merged player values
+ */
+export function mergePlayerValues(ktcValues = {}) {
+  const merged = { ...PLAYER_VALUES };
+
+  // Override with KTC values where available
+  Object.keys(ktcValues).forEach(playerName => {
+    if (ktcValues[playerName] > 0) {
+      merged[playerName] = ktcValues[playerName];
+    }
+  });
+
+  return merged;
+}
+
+/**
+ * Adjust player values based on league settings
+ * @param {Object} playerValues - Base player values
+ * @param {Object} leagueSettings - League configuration
+ * @param {boolean} leagueSettings.superflex - Is superflex league
+ * @param {boolean} leagueSettings.tePremium - Is TE premium league
+ * @param {number} leagueSettings.ppr - PPR scoring (1.0 = full, 0.5 = half, 0 = standard)
+ * @param {number} leagueSettings.leagueSize - Number of teams (10, 12, 14, etc.)
+ * @returns {Object} Adjusted player values
+ */
+export function adjustValuesForLeague(playerValues, leagueSettings = {}) {
+  const {
+    superflex = false,
+    tePremium = false,
+    ppr = 1.0,
+    leagueSize = 12
+  } = leagueSettings;
+
+  const adjusted = {};
+
+  Object.keys(playerValues).forEach(playerName => {
+    let value = playerValues[playerName];
+    const position = getPlayerPosition(playerName);
+
+    // Superflex: QB values × 1.8
+    if (superflex && position === 'QB') {
+      value *= 1.8;
+    }
+
+    // TE Premium: TE values × 1.3
+    if (tePremium && position === 'TE') {
+      value *= 1.3;
+    }
+
+    // PPR multiplier (affects WR and RB differently)
+    if (position === 'WR') {
+      // WRs benefit most from PPR
+      if (ppr === 1.0) value *= 1.0; // Full PPR - no change
+      else if (ppr >= 0.5) value *= 0.95; // Half PPR - slight decrease
+      else value *= 0.85; // Standard - decrease WR value
+    } else if (position === 'RB') {
+      // RBs are more valuable in standard
+      if (ppr === 1.0) value *= 1.0; // Full PPR - no change
+      else if (ppr >= 0.5) value *= 1.05; // Half PPR - slight increase
+      else value *= 1.15; // Standard - increase RB value
+    }
+
+    // League size adjustment
+    if (leagueSize === 10) {
+      value *= 0.9; // Smaller league - elite players more valuable, depth less valuable
+    } else if (leagueSize === 14) {
+      value *= 1.1; // Larger league - depth more valuable
+    } else if (leagueSize === 16) {
+      value *= 1.2; // Very large league - all startable players valuable
+    }
+    // 12-team is baseline (1.0x)
+
+    adjusted[playerName] = Math.round(value);
+  });
+
+  return adjusted;
+}
+
+/**
+ * Helper function to determine player position from name
+ * Uses PLAYER_VALUES list to identify position
+ * @param {string} playerName - Player name
+ * @returns {string} Position (QB, RB, WR, TE, or null)
+ */
+function getPlayerPosition(playerName) {
+  // QB list
+  const qbs = ['Josh Allen', 'Lamar Jackson', 'Joe Burrow', 'Patrick Mahomes', 'Jalen Hurts',
+    'C.J. Stroud', 'Jayden Daniels', 'Anthony Richardson', 'Caleb Williams', 'Drake Maye',
+    'Bo Nix', 'Trevor Lawrence', 'Kyler Murray', 'Jared Goff', 'Dak Prescott', 'Justin Herbert',
+    'Brock Purdy', 'Tua Tagovailoa'];
+
+  // RB list
+  const rbs = ['Bijan Robinson', 'Jahmyr Gibbs', 'Breece Hall', 'Jonathan Taylor',
+    'Saquon Barkley', 'De\'Von Achane', 'Travis Etienne', 'Isiah Pacheco', 'Derrick Henry',
+    'Ashton Jeanty', 'Omarion Hampton', 'Quinshon Judkins', 'James Conner', 'Cam Skattebo',
+    'Josh Jacobs', 'Aaron Jones', 'Kyren Williams', 'James Cook', 'Kenneth Walker III',
+    'Najee Harris', 'Javonte Williams', 'Rachaad White', 'Rhamondre Stevenson',
+    'David Montgomery'];
+
+  // TE list
+  const tes = ['Brock Bowers', 'Sam LaPorta', 'Trey McBride', 'George Kittle', 'Travis Kelce',
+    'Kyle Pitts', 'Dalton Kincaid', 'Jake Ferguson', 'Evan Engram', 'David Njoku',
+    'Mark Andrews', 'Dallas Goedert', 'Pat Freiermuth', 'Cole Kmet'];
+
+  if (qbs.includes(playerName)) return 'QB';
+  if (rbs.includes(playerName)) return 'RB';
+  if (tes.includes(playerName)) return 'TE';
+
+  // If not found in other lists, assume WR (or null)
+  if (PLAYER_VALUES[playerName]) return 'WR';
+
+  return null;
+}
+
+/**
+ * Get adjusted player value with league settings
+ * Combines getPlayerValue with league adjustments
+ * @param {Object} player - Player object
+ * @param {Object} leagueSettings - League configuration
+ * @param {Object} ktcValues - Optional KTC values to merge
+ * @returns {number} Adjusted value
+ */
+export function getAdjustedPlayerValue(player, leagueSettings = {}, ktcValues = {}) {
+  const baseValue = getPlayerValue(player);
+
+  if (!leagueSettings || Object.keys(leagueSettings).length === 0) {
+    return baseValue;
+  }
+
+  const name = player.name || `${player.firstName} ${player.lastName}`;
+  const mergedValues = mergePlayerValues(ktcValues);
+  const adjustedValues = adjustValuesForLeague(mergedValues, leagueSettings);
+
+  return adjustedValues[name] || baseValue;
+}
+
+export default {
+  getPlayerValue,
+  getPickValue,
+  analyzeTrade,
+  estimatePickTier,
+  mergePlayerValues,
+  adjustValuesForLeague,
+  getAdjustedPlayerValue
+};

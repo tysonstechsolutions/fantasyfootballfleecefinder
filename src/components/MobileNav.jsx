@@ -7,15 +7,15 @@ function MobileNav() {
   const items = [
     { id: PAGES.DASHBOARD, icon: '📊', label: 'Home' },
     { id: PAGES.TRADE, icon: '🔄', label: 'Trade' },
-    { id: PAGES.FLEECE, icon: '🎯', label: 'Fleece' },
-    { id: PAGES.HISTORY, icon: '🤝', label: 'History' },
+    { id: PAGES.TRADEFINDER, icon: '🔍', label: 'Find' },
+    { id: PAGES.MOCKDRAFT, icon: '🎓', label: 'Draft' },
     { id: PAGES.SETTINGS, icon: '⚙️', label: 'Settings' },
   ];
 
   return (
     <nav className="mobile-nav">
       {items.map(item => {
-        const disabled = (item.id === PAGES.TRADE || item.id === PAGES.FLEECE || item.id === PAGES.HISTORY) && !league;
+        const disabled = (item.id === PAGES.TRADE || item.id === PAGES.FLEECE || item.id === PAGES.TRADEFINDER || item.id === PAGES.PLAYERCOMPARE || item.id === PAGES.POWERRANKINGS || item.id === PAGES.SEASONSIM || item.id === PAGES.HISTORY || item.id === PAGES.FREEAGENTS) && !league;
         return (
           <button
             key={item.id}

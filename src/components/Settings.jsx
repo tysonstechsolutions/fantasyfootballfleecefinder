@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../App';
+import { useTheme } from '../context/ThemeContext';
 
-function Settings({ onClearData }) {
+function Settings({ onClearData, onShowShortcuts }) {
   const { apiKey, setApiKey, league } = useApp();
+  const { theme, toggleTheme, isDark } = useTheme();
   const [tempKey, setTempKey] = useState(apiKey);
   const [showKey, setShowKey] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -22,6 +24,39 @@ function Settings({ onClearData }) {
   return (
     <div style={{ maxWidth: 600, margin: '0 auto' }}>
       <h1 style={{ marginBottom: '24px' }}>Settings</h1>
+
+      {/* Appearance */}
+      <div className="card" style={{ marginBottom: '20px' }}>
+        <div className="card-header"><h3>🎨 Appearance</h3></div>
+        <div className="card-body">
+          <div className="settings-section">
+            <h3>Theme</h3>
+            <p>Choose between light and dark mode, or use your system preference.</p>
+            <div className="theme-toggle" onClick={toggleTheme}>
+              <div className="theme-toggle-label">
+                <span className="theme-toggle-icon">{isDark ? '🌙' : '☀️'}</span>
+                <span>{isDark ? 'Dark Mode' : 'Light Mode'}</span>
+              </div>
+              <div className={`theme-toggle-switch ${!isDark ? 'active' : ''}`}>
+                <div className={`theme-toggle-slider ${!isDark ? 'active' : ''}`}></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Keyboard Shortcuts */}
+      <div className="card" style={{ marginBottom: '20px' }}>
+        <div className="card-header"><h3>⌨️ Keyboard Shortcuts</h3></div>
+        <div className="card-body">
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', marginBottom: '16px' }}>
+            Use keyboard shortcuts to navigate faster. Press <kbd className="shortcut-key">?</kbd> to view all shortcuts.
+          </p>
+          <button className="btn btn-secondary" onClick={onShowShortcuts}>
+            View Keyboard Shortcuts
+          </button>
+        </div>
+      </div>
 
       {/* API Key */}
       <div className="card" style={{ marginBottom: '20px' }}>

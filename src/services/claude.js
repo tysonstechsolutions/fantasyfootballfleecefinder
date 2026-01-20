@@ -1,4 +1,5 @@
 // Claude AI Service
+import { getPlayerValue } from './values';
 
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const CURRENT_YEAR = 2026;
@@ -426,4 +427,306 @@ function formatRosterBriefNoInjury(roster) {
   return formatRosterBrief(roster); // Same since brief doesn't include injuries anyway
 }
 
-export default { analyzeTradeAI, suggestBestTrades, findFleeces, findLeagueFleeces, suggestImprovements, analyzeRoster };
+export async function generateNegotiationPitch(apiKey, { trade, opponentProfile }) {
+  const { iGive, iGet, opponentRoster, myRoster } = trade;
+
+  const isContender = opponentProfile?.isContender || false;
+  const isRebuilding = opponentProfile?.isRebuilding || false;
+  const teamStatus = isContender ? 'CONTENDER - looking to win now' : isRebuilding ? 'REBUILDER - focused on future assets' : 'MIDDLE TEAM';
+
+  const system = `You are a dynasty fantasy football negotiation expert. Your job is to write persuasive trade messages that focus on how the trade benefits the OPPONENT.
+
+CRITICAL RULES:
+1. Current year is ${CURRENT_YEAR} - ONLY reference ${CURRENT_YEAR}+ draft picks
+2. ${getSeasonContext()}
+3. Focus on THEIR needs, not yours
+4. Be persuasive but not pushy
+5. Create urgency without being desperate`;
+
+  const prompt = `Write a persuasive trade message for this offer:
+
+TRADE PROPOSAL:
+They GIVE:
+${formatAssets(iGet)}
+
+They RECEIVE:
+${formatAssets(iGive)}
+
+OPPONENT'S ROSTER (${opponentRoster?.name || 'Opponent'}):
+${formatRosterNoInjury(opponentRoster)}
+
+OPPONENT'S STATUS: ${teamStatus}
+${opponentProfile?.record ? `Record: ${opponentProfile.record}` : ''}
+
+MY ROSTER (for context only):
+${formatRosterNoInjury(myRoster)}
+
+Write a compelling message (3-4 sentences) that:
+1. Explains why THIS TRADE HELPS THEM specifically
+2. Addresses their roster construction needs
+3. Creates mild urgency (league dynamics, upcoming draft, etc.)
+4. Sounds friendly and collaborative, not salesy
+
+TONE: Professional but friendly. Avoid exclamation points and emojis.
+
+Return ONLY the message text, no preamble.`;
+
+  return callClaude(apiKey, system, prompt, 1000);
+}
+
+export async function generateCounterOffer(apiKey, { originalTrade, rejectionReason, myRoster, theirRoster }) {
+  const { iGive, iGet } = originalTrade;
+
+  const system = `You are a dynasty fantasy football trade negotiation expert. When a trade gets rejected, you find creative alternatives.
+
+CRITICAL RULES:
+1. Current year is ${CURRENT_YEAR} - ONLY reference ${CURRENT_YEAR}+ draft picks
+2. ${getSeasonContext()}
+3. Keep the core concept similar but adjust values
+4. Consider the rejection reason carefully`;
+
+  const prompt = `REJECTED TRADE:
+I GAVE:
+${formatAssets(iGive)}
+
+I ASKED FOR:
+${formatAssets(iGet)}
+
+REJECTION REASON: ${rejectionReason || 'Not specified'}
+
+MY ROSTER:
+${formatRosterNoInjury(myRoster)}
+
+THEIR ROSTER (${theirRoster?.name || 'Opponent'}):
+${formatRosterNoInjury(theirRoster)}
+
+Suggest 3 COUNTER OFFERS that might get accepted:
+
+For each counter offer, provide:
+**COUNTER OFFER #[number]** - [Brief description]
+- I GIVE: [exact players/picks]
+- I GET: [exact players/picks]
+- CHANGES FROM ORIGINAL: [What's different]
+- WHY THIS WORKS: [Why they might accept now]
+- LIKELIHOOD: [Low/Medium/High]
+
+Options should range from:
+1. Small adjustment (add a pick or change a player)
+2. Medium shift (swap a player or add more value)
+3. Different angle (target different position or use different assets)
+
+REMEMBER: No 2025 picks. Only ${CURRENT_YEAR}+ picks.`;
+
+  return callClaude(apiKey, system, prompt, 2500);
+}
+
+export async function whatWouldItTake(apiKey, { targetPlayer, myRoster, theirRoster }) {
+  const playerValue = getPlayerValue(targetPlayer);
+
+  const system = `You are a dynasty fantasy football trade expert. Analyze rosters to find fair packages for a target player.
+
+CRITICAL RULES:
+1. Current year is ${CURRENT_YEAR} - ONLY reference ${CURRENT_YEAR}+ draft picks
+2. ${getSeasonContext()}
+3. Provide multiple realistic package options
+4. Consider roster construction for both teams`;
+
+  const prompt = `TARGET PLAYER: ${targetPlayer.name} (${targetPlayer.position}, estimated value: ${playerValue})
+
+CURRENT OWNER'S ROSTER (${theirRoster?.name || 'Owner'}):
+${formatRosterNoInjury(theirRoster)}
+
+MY ROSTER:
+${formatRosterNoInjury(myRoster)}
+
+What would it take to acquire ${targetPlayer.name}?
+
+Provide 3 PACKAGE OPTIONS:
+
+**OPTION 1: THE LOWBALL** (80-90% of value)
+- What I'd offer: [exact players/picks]
+- Total value: [estimate]
+- Why it might work: [situation where they accept]
+- Acceptance chance: [Low/Medium]
+
+**OPTION 2: FAIR VALUE** (95-105% of value)
+- What I'd offer: [exact players/picks]
+- Total value: [estimate]
+- Why it should work: [fair deal reasoning]
+- Acceptance chance: [Medium/High]
+
+**OPTION 3: THE OVERPAY** (110-120% of value)
+- What I'd offer: [exact players/picks]
+- Total value: [estimate]
+- Why they can't refuse: [why this closes the deal]
+- Acceptance chance: [High]
+
+For each option, ensure:
+- Packages use MY available assets
+- Values are close to ${playerValue} for target
+- Consider both teams' roster needs
+- Only ${CURRENT_YEAR}+ picks
+
+REMEMBER: No 2025 picks exist. Ignore injuries - offseason.`;
+
+  return callClaude(apiKey, system, prompt, 2500);
+}
+
+export async function calculateTradeRegret(apiKey, { historicalTrade, currentValues }) {
+  const { date, side1, side2, side1Owner, side2Owner } = historicalTrade;
+  const { side1Current, side2Current } = currentValues;
+
+  const originalVal1 = side1.reduce((s, x) => s + x.originalValue, 0);
+  const originalVal2 = side2.reduce((s, x) => s + x.originalValue, 0);
+  const currentVal1 = side1Current.reduce((s, x) => s + x.currentValue, 0);
+  const currentVal2 = side2Current.reduce((s, x) => s + x.currentValue, 0);
+
+  const system = `You are a dynasty fantasy football analyst specializing in trade analysis and retrospectives.
+
+CRITICAL RULES:
+1. Current year is ${CURRENT_YEAR}
+2. Be honest about who won/lost
+3. Explain WHY values changed (performance, age, injuries)
+4. Consider timing and context`;
+
+  const prompt = `TRADE REGRET ANALYSIS
+
+TRADE DATE: ${date}
+
+ORIGINAL TRADE:
+${side1Owner} GAVE (${originalVal1} value then):
+${side1.map(x => `- ${x.name}: ${x.originalValue} value`).join('\n')}
+
+${side1Owner} RECEIVED (${originalVal2} value then):
+${side2.map(x => `- ${x.name}: ${x.originalValue} value`).join('\n')}
+
+CURRENT VALUES:
+What ${side1Owner} gave is now worth: ${currentVal1}
+${side1Current.map(x => `- ${x.name}: ${x.currentValue} value (was ${x.originalValue})`).join('\n')}
+
+What ${side1Owner} received is now worth: ${currentVal2}
+${side2Current.map(x => `- ${x.name}: ${x.currentValue} value (was ${x.originalValue})`).join('\n')}
+
+VALUE CHANGE:
+- Original difference: ${originalVal2 - originalVal1} (${((originalVal2 / originalVal1 - 1) * 100).toFixed(1)}%)
+- Current difference: ${currentVal2 - currentVal1} (${((currentVal2 / currentVal1 - 1) * 100).toFixed(1)}%)
+- Net change: ${(currentVal2 - currentVal1) - (originalVal2 - originalVal1)}
+
+Analyze this trade:
+1. **VERDICT**: Who won the trade overall? By how much?
+2. **BIGGEST WINNER**: Which asset gained the most value?
+3. **BIGGEST LOSER**: Which asset lost the most value?
+4. **WHY**: Explain the key factors (age, performance, injuries, etc.)
+5. **HINDSIGHT**: What should have been done differently?
+6. **GRADE**: Rate the trade A-F for ${side1Owner}
+
+Be specific and analytical. This is about learning from past decisions.`;
+
+  return callClaude(apiKey, system, prompt, 2000);
+}
+
+export function analyzeOwnerTendencies(trades, ownerId) {
+  if (!trades || trades.length === 0) {
+    return {
+      tradesPerYear: 0,
+      preferredPositions: [],
+      avgValueDiff: 0,
+      patterns: []
+    };
+  }
+
+  const ownerTrades = trades.filter(t =>
+    t.side1OwnerId === ownerId || t.side2OwnerId === ownerId
+  );
+
+  if (ownerTrades.length === 0) {
+    return {
+      tradesPerYear: 0,
+      preferredPositions: [],
+      avgValueDiff: 0,
+      patterns: []
+    };
+  }
+
+  // Calculate trades per year
+  const years = new Set(ownerTrades.map(t => new Date(t.date).getFullYear()));
+  const tradesPerYear = ownerTrades.length / Math.max(years.size, 1);
+
+  // Find preferred positions
+  const positionCounts = {};
+  ownerTrades.forEach(trade => {
+    const side = trade.side1OwnerId === ownerId ? trade.side1 : trade.side2;
+    side.forEach(asset => {
+      if (asset.position) {
+        positionCounts[asset.position] = (positionCounts[asset.position] || 0) + 1;
+      }
+    });
+  });
+
+  const preferredPositions = Object.entries(positionCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([pos]) => pos);
+
+  // Calculate average value differential
+  let totalDiff = 0;
+  ownerTrades.forEach(trade => {
+    const isGiver = trade.side1OwnerId === ownerId;
+    const gave = isGiver ? trade.side1Value || 0 : trade.side2Value || 0;
+    const got = isGiver ? trade.side2Value || 0 : trade.side1Value || 0;
+    totalDiff += (got - gave);
+  });
+  const avgValueDiff = totalDiff / ownerTrades.length;
+
+  // Identify patterns
+  const patterns = [];
+
+  if (tradesPerYear >= 10) {
+    patterns.push('Very active trader');
+  } else if (tradesPerYear >= 5) {
+    patterns.push('Active trader');
+  } else if (tradesPerYear < 2) {
+    patterns.push('Rarely trades');
+  }
+
+  if (avgValueDiff > 500) {
+    patterns.push('Usually wins trades');
+  } else if (avgValueDiff < -500) {
+    patterns.push('Often loses trades');
+  } else {
+    patterns.push('Makes fair trades');
+  }
+
+  const pickTrades = ownerTrades.filter(t =>
+    [...(t.side1 || []), ...(t.side2 || [])].some(a => a.type === 'pick')
+  );
+  const pickRate = pickTrades.length / ownerTrades.length;
+
+  if (pickRate > 0.6) {
+    patterns.push('Loves draft picks');
+  } else if (pickRate < 0.3) {
+    patterns.push('Prefers players over picks');
+  }
+
+  return {
+    tradesPerYear: Math.round(tradesPerYear * 10) / 10,
+    preferredPositions,
+    avgValueDiff: Math.round(avgValueDiff),
+    patterns,
+    totalTrades: ownerTrades.length
+  };
+}
+
+export default {
+  analyzeTradeAI,
+  suggestBestTrades,
+  findFleeces,
+  findLeagueFleeces,
+  suggestImprovements,
+  analyzeRoster,
+  generateNegotiationPitch,
+  generateCounterOffer,
+  whatWouldItTake,
+  calculateTradeRegret,
+  analyzeOwnerTendencies
+};

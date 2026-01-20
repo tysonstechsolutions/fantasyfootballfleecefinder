@@ -6,7 +6,13 @@ const NAV = [
   { id: 'import', icon: '📥', label: 'Import', needsLeague: false },
   { id: 'trade', icon: '🔄', label: 'Trade Builder', needsLeague: true },
   { id: 'fleece', icon: '🎯', label: 'Fleece Finder', needsLeague: true },
+  { id: 'tradefinder', icon: '🔍', label: 'Trade Finder', needsLeague: true },
+  { id: 'playercompare', icon: '⚖️', label: 'Compare Players', needsLeague: true },
+  { id: 'powerrankings', icon: '🏆', label: 'Power Rankings', needsLeague: true },
+  { id: 'seasonsim', icon: '🎲', label: 'Season Sim', needsLeague: true },
   { id: 'history', icon: '🤝', label: 'Trade History', needsLeague: true },
+  { id: 'tradedatabase', icon: '💾', label: 'Trade Database', needsLeague: false },
+  { id: 'mockdraft', icon: '🎓', label: 'Mock Draft', needsLeague: false },
   { id: 'freeagents', icon: '📋', label: 'Free Agents', needsLeague: true },
   { id: 'settings', icon: '⚙️', label: 'Settings', needsLeague: false },
 ];

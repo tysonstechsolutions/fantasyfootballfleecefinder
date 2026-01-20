@@ -5,15 +5,12 @@ import Dashboard from './components/Dashboard';
 import ImportLeague from './components/ImportLeague';
 import TradeBuilder from './components/TradeBuilder';
 import FleeceFinder from './components/FleeceFinder';
-import TradeFinder from './components/analysis/TradeFinder';
 import FreeAgents from './components/FreeAgents';
 import TradeHistory from './components/TradeHistory';
 import Settings from './components/Settings';
 import LeaguePowerRankings from './components/analysis/LeaguePowerRankings';
 import SeasonSimulator from './components/analysis/SeasonSimulator';
 import TradeDatabase from './components/analysis/TradeDatabase';
-import PlayerCompare from './components/analysis/PlayerCompare';
-import MockDraft from './components/draft/MockDraft';
 import OfflineIndicator from './components/common/OfflineIndicator';
 import KeyboardShortcutsModal from './components/common/KeyboardShortcutsModal';
 import useKeyboardShortcuts from './hooks/useKeyboardShortcuts';
@@ -31,14 +28,11 @@ const PAGES = {
   IMPORT: 'import',
   TRADE: 'trade',
   FLEECE: 'fleece',
-  TRADEFINDER: 'tradefinder',
-  PLAYERCOMPARE: 'playercompare',
   HISTORY: 'history',
   FREEAGENTS: 'freeagents',
   POWERRANKINGS: 'powerrankings',
   TRADEDATABASE: 'tradedatabase',
   SEASONSIM: 'seasonsim',
-  MOCKDRAFT: 'mockdraft',
   SETTINGS: 'settings'
 };
 
@@ -138,10 +132,6 @@ function AppContent() {
         return <TradeBuilder />;
       case PAGES.FLEECE:
         return <FleeceFinder />;
-      case PAGES.TRADEFINDER:
-        return <TradeFinder />;
-      case PAGES.PLAYERCOMPARE:
-        return <PlayerCompare />;
       case PAGES.HISTORY:
         return <TradeHistory />;
       case PAGES.FREEAGENTS:
@@ -152,8 +142,6 @@ function AppContent() {
         return <TradeDatabase />;
       case PAGES.SEASONSIM:
         return <SeasonSimulator />;
-      case PAGES.MOCKDRAFT:
-        return <MockDraft />;
       case PAGES.SETTINGS:
         return <Settings onClearData={handleClearData} onShowShortcuts={() => setShowShortcutsModal(true)} />;
       default:
