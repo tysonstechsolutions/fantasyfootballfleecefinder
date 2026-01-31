@@ -123,6 +123,9 @@ export function generateTradePackages(myRoster, theirRoster, myNeeds, theirNeeds
     if (isCriticalNeed && myPlayer.value >= 4000) return; // Don't trade away starters from critical need positions
 
     theirPlayersWithValue.forEach(theirPlayer => {
+      // Skip if I'd be getting less value AND it doesn't address my needs
+      if (theirPlayer.value < myPlayer.value * 0.85) return; // Don't lose more than 15% value
+
       // Check if this addresses my needs
       const addressesMyNeed = myNeeds.needs.critical.some(n =>
         n.position === theirPlayer.position && theirPlayer.value >= n.minValue
@@ -130,33 +133,44 @@ export function generateTradePackages(myRoster, theirRoster, myNeeds, theirNeeds
         n.position === theirPlayer.position && theirPlayer.value >= n.minValue
       );
 
-      // Check if this addresses their needs
-      const addressesTheirNeed = theirNeeds.needs.critical.some(n =>
-        n.position === myPlayer.position && myPlayer.value >= n.minValue
-      ) || theirNeeds.needs.moderate.some(n =>
+      // Check if this addresses their needs (CRITICAL for fleece trades)
+      const addressesTheirCritical = theirNeeds.needs.critical.some(n =>
         n.position === myPlayer.position && myPlayer.value >= n.minValue
       );
+      const addressesTheirModerate = theirNeeds.needs.moderate.some(n =>
+        n.position === myPlayer.position && myPlayer.value >= n.minValue
+      );
+      const addressesTheirNeed = addressesTheirCritical || addressesTheirModerate;
 
-      // Only consider if values are within 20% of each other
-      const valueDiff = Math.abs(myPlayer.value - theirPlayer.value);
-      const avgValue = (myPlayer.value + theirPlayer.value) / 2;
-      const pctDiff = (valueDiff / avgValue) * 100;
+      // Calculate value difference
+      const pctDiff = ((theirPlayer.value / myPlayer.value) - 1) * 100;
 
-      if (pctDiff <= 20 && (addressesMyNeed || addressesTheirNeed)) {
+      // FLEECE LOGIC: Allow lopsided trades if we're addressing their critical need
+      // They'll overpay if they desperately need what we're sending
+      let maxAllowedDiff = 20; // Default: 20% tolerance
+      if (addressesTheirCritical) {
+        maxAllowedDiff = 35; // They'll overpay 35% for a critical need
+      } else if (addressesTheirModerate) {
+        maxAllowedDiff = 25; // They'll overpay 25% for a moderate need
+      }
+
+      const absPctDiff = Math.abs(pctDiff);
+      if (absPctDiff <= maxAllowedDiff && (addressesMyNeed || addressesTheirNeed || pctDiff > 5)) {
         packages.push({
           iGive: [myPlayer],
           iGet: [theirPlayer],
           addressesMyNeed,
           addressesTheirNeed,
+          addressesTheirCritical,
           valueDiff: theirPlayer.value - myPlayer.value,
-          pctDiff: ((theirPlayer.value / myPlayer.value) - 1) * 100
+          pctDiff
         });
       }
     });
   });
 
   // 2-for-1 Trades (combining two lesser assets for one better asset)
-  // I give 2, I get 1 (consolidating)
+  // I give 2, I get 1 (consolidating) - GREAT for dynasty because roster spots are valuable
   for (let i = 0; i < myPlayersWithValue.length; i++) {
     for (let j = i + 1; j < myPlayersWithValue.length; j++) {
       const asset1 = myPlayersWithValue[i];
@@ -173,18 +187,31 @@ export function generateTradePackages(myRoster, theirRoster, myNeeds, theirNeeds
           n.position === theirPlayer.position && theirPlayer.value >= n.minValue
         );
 
-        const valueDiff = Math.abs(combinedValue - theirPlayer.value);
-        const avgValue = (combinedValue + theirPlayer.value) / 2;
-        const pctDiff = (valueDiff / avgValue) * 100;
+        // Check if they need the depth we're providing
+        const addressesTheirNeed = theirNeeds.needs.critical.some(n =>
+          (n.position === asset1.position || n.position === asset2.position)
+        ) || theirNeeds.needs.moderate.some(n =>
+          (n.position === asset1.position || n.position === asset2.position)
+        );
 
-        if (pctDiff <= 15 && addressesMyNeed) {
+        const pctDiff = ((theirPlayer.value / combinedValue) - 1) * 100;
+
+        // 2-for-1 is inherently good for you (you get the better player)
+        // Allow up to 20% value loss because consolidation is worth it
+        // But if they need depth, they'll accept even if value is against them
+        let minAcceptablePct = -20; // You can "lose" up to 20% value (but gain roster consolidation)
+        if (addressesTheirNeed) {
+          minAcceptablePct = -30; // They need depth, will overpay
+        }
+
+        if (pctDiff >= minAcceptablePct && (addressesMyNeed || pctDiff > 0)) {
           packages.push({
             iGive: [asset1, asset2],
             iGet: [theirPlayer],
             addressesMyNeed,
-            addressesTheirNeed: false,
+            addressesTheirNeed,
             valueDiff: theirPlayer.value - combinedValue,
-            pctDiff: ((theirPlayer.value / combinedValue) - 1) * 100,
+            pctDiff,
             type: '2-for-1-consolidate'
           });
         }
@@ -232,48 +259,62 @@ export function generateTradePackages(myRoster, theirRoster, myNeeds, theirNeeds
 }
 
 /**
- * Score a trade based on value fairness, need fit, and acceptance likelihood
+ * Score a trade based on YOUR advantage while still being acceptable to opponent
+ * Higher score = better for you AND likely to be accepted
  */
 export function scoreTrade(trade, myNeeds, theirNeeds) {
   let score = 0;
 
-  // 1. Value fairness (0-30 points) - closer to even is better
-  const absPctDiff = Math.abs(trade.pctDiff);
-  if (absPctDiff <= 5) score += 30;
-  else if (absPctDiff <= 10) score += 25;
-  else if (absPctDiff <= 15) score += 20;
-  else if (absPctDiff <= 20) score += 15;
-  else score += 10;
+  // 1. VALUE ADVANTAGE FOR YOU (0-40 points) - we WANT trades in your favor
+  const pctDiff = trade.pctDiff; // Positive = you get more value
+  if (pctDiff >= 15) score += 40;        // You're fleecing them - best case
+  else if (pctDiff >= 10) score += 35;   // Great deal for you
+  else if (pctDiff >= 5) score += 30;    // Good deal for you
+  else if (pctDiff >= 0) score += 20;    // Fair or slightly in your favor
+  else if (pctDiff >= -5) score += 15;   // Slightly in their favor
+  else if (pctDiff >= -10) score += 10;  // They're winning
+  else score += 5;                        // Bad deal for you
 
-  // 2. Addresses my needs (0-40 points)
+  // 2. Addresses YOUR needs (0-35 points)
   if (trade.addressesMyNeed) {
     const isCritical = trade.iGet.some(asset =>
       myNeeds.needs.critical.some(n => n.position === asset.position)
     );
     if (isCritical) {
-      score += 40;
+      score += 35;
     } else {
-      score += 25;
+      score += 20;
     }
   }
 
-  // 3. Acceptance likelihood (0-30 points) - based on addressing their needs
+  // 3. ACCEPTANCE LIKELIHOOD (0-25 points) - they need to actually accept
+  // Key insight: if trade addresses THEIR need, they'll accept even if value is against them
   if (trade.addressesTheirNeed) {
-    score += 30;
-  } else {
-    // Check if value is in their favor
-    if (trade.pctDiff < -5) {
-      score += 20; // They get more value, likely to accept
-    } else if (trade.pctDiff < 0) {
-      score += 15;
+    const theirCritical = trade.iGive.some(asset =>
+      theirNeeds.needs.critical.some(n => n.position === asset.position)
+    );
+    if (theirCritical) {
+      score += 25; // They desperately need what you're sending - will likely accept
     } else {
-      score += 5; // Equal or I get more, less likely without need fit
+      score += 18; // Addresses their moderate need
     }
+  } else if (pctDiff < -5) {
+    score += 12; // They get more value, might accept even without need fit
+  } else {
+    score += 3; // No need fit AND value against them - unlikely to accept
   }
 
-  // Bonus points for multi-asset trades that consolidate rosters
+  // Bonus: Consolidation trades (2-for-1) where you get the star
   if (trade.type === '2-for-1-consolidate') {
-    score += 10;
+    score += 8;
+  }
+
+  // Bonus: You're selling aging/declining assets
+  const sellingOldRB = trade.iGive.some(asset =>
+    asset.position === 'RB' && (asset.age || 25) >= 27
+  );
+  if (sellingOldRB) {
+    score += 5; // Getting out of declining RB is smart dynasty move
   }
 
   return Math.min(score, 100);
@@ -308,10 +349,37 @@ export function findAllTrades(myRoster, allRosters, leagueSettings) {
     });
   });
 
-  // Sort by score (highest first) and return top 20
-  return opportunities
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 20);
+  // Sort by score (highest first)
+  const sorted = opportunities.sort((a, b) => b.score - a.score);
+
+  // Ensure variety: take best trades but ensure at least 3 per opponent if available
+  const result = [];
+  const byOpponent = new Map();
+
+  // Group by opponent
+  sorted.forEach(opp => {
+    const id = opp.opponent.rosterId;
+    if (!byOpponent.has(id)) byOpponent.set(id, []);
+    byOpponent.get(id).push(opp);
+  });
+
+  // First pass: take top 3 from each opponent
+  byOpponent.forEach((trades, opponentId) => {
+    trades.slice(0, 3).forEach(t => result.push(t));
+  });
+
+  // Second pass: fill remaining with best overall trades not already included
+  const resultSet = new Set(result);
+  sorted.forEach(opp => {
+    if (result.length >= 50) return;
+    if (!resultSet.has(opp)) {
+      result.push(opp);
+      resultSet.add(opp);
+    }
+  });
+
+  // Re-sort final result by score
+  return result.sort((a, b) => b.score - a.score);
 }
 
 /**

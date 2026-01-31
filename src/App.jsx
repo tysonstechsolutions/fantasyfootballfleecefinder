@@ -14,6 +14,7 @@ import SeasonSimulator from './components/analysis/SeasonSimulator';
 import TradeDatabase from './components/analysis/TradeDatabase';
 import PlayerCompare from './components/analysis/PlayerCompare';
 import MockDraft from './components/draft/MockDraft';
+import PendingTrades from './components/PendingTrades';
 import OfflineIndicator from './components/common/OfflineIndicator';
 import KeyboardShortcutsModal from './components/common/KeyboardShortcutsModal';
 import ErrorBoundary from './components/common/ErrorBoundary';
@@ -34,6 +35,7 @@ const PAGES = {
   TRADE: 'trade',
   FLEECE: 'fleece',
   TRADEFINDER: 'tradefinder',
+  PENDINGTRADES: 'pendingtrades',
   PLAYERCOMPARE: 'playercompare',
   HISTORY: 'history',
   FREEAGENTS: 'freeagents',
@@ -142,6 +144,8 @@ function AppContent() {
         return <FleeceFinder />;
       case PAGES.TRADEFINDER:
         return <TradeFinder />;
+      case PAGES.PENDINGTRADES:
+        return <PendingTrades />;
       case PAGES.PLAYERCOMPARE:
         return <PlayerCompare />;
       case PAGES.HISTORY:

@@ -5,6 +5,7 @@ const NAV = [
   { id: 'dashboard', icon: '📊', label: 'Dashboard', needsLeague: false },
   { id: 'import', icon: '📥', label: 'Import', needsLeague: false },
   { id: 'trade', icon: '🔄', label: 'Trade Builder', needsLeague: true },
+  { id: 'pendingtrades', icon: '📨', label: 'Pending Trades', needsLeague: true },
   { id: 'fleece', icon: '🎯', label: 'Fleece Finder', needsLeague: true },
   { id: 'tradefinder', icon: '🔍', label: 'Trade Finder', needsLeague: true },
   { id: 'playercompare', icon: '⚖️', label: 'Compare Players', needsLeague: true },

@@ -1,13 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useApp } from '../App';
 import { getPlayerValue } from '../services/values';
-import { findAllTrades, getAcceptanceLikelihood } from '../services/tradeFinder';
-import { detectLeagueSettings } from '../services/sleeper';
 
 function Dashboard({ onImportClick }) {
   const { league, myRoster, opponents, setSelectedOpponentId, setPage, PAGES } = useApp();
-  const [bestTrade, setBestTrade] = useState(null);
-  const [loadingTrade, setLoadingTrade] = useState(false);
 
   if (!league || !myRoster) {
     return (
@@ -39,24 +35,6 @@ function Dashboard({ onImportClick }) {
     ...r,
     totalValue: r.players.reduce((sum, p) => sum + getPlayerValue(p), 0)
   })).sort((a, b) => b.totalValue - a.totalValue);
-
-  // Find best trade on mount
-  useEffect(() => {
-    if (league && myRoster && opponents.length > 0 && !bestTrade && !loadingTrade) {
-      setLoadingTrade(true);
-      try {
-        const leagueSettings = detectLeagueSettings(league.league);
-        const allRosters = [myRoster, ...opponents];
-        const trades = findAllTrades(myRoster, allRosters, leagueSettings);
-        if (trades.length > 0) {
-          setBestTrade(trades[0]);
-        }
-      } catch (err) {
-        console.error('Error finding best trade:', err);
-      }
-      setLoadingTrade(false);
-    }
-  }, [league, myRoster, opponents]);
 
   const handleOpponentClick = (id) => {
     setSelectedOpponentId(id);
@@ -122,107 +100,22 @@ function Dashboard({ onImportClick }) {
         </div>
       </div>
 
-      {/* Best Trade to Improve Roster */}
+      {/* Quick Actions */}
       <div className="card" style={{ marginTop: '20px', border: '2px solid var(--accent)' }}>
         <div className="card-header" style={{ background: 'linear-gradient(135deg, var(--accent) 0%, #6366f1 100%)', color: 'white' }}>
-          <h3>🚀 Best Trade to Improve Your Roster</h3>
+          <h3>🚀 Improve Your Roster</h3>
         </div>
-        <div className="card-body">
-          {loadingTrade ? (
-            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-              Finding best trade...
-            </div>
-          ) : bestTrade ? (
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <span style={{ fontWeight: 600 }}>Trade with {bestTrade.opponent?.name || 'Opponent'}</span>
-                <span style={{
-                  padding: '4px 12px',
-                  borderRadius: '12px',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  background: bestTrade.score >= 70 ? 'var(--success)' : bestTrade.score >= 50 ? 'var(--warning)' : 'var(--error)',
-                  color: 'white'
-                }}>
-                  {getAcceptanceLikelihood(bestTrade.score)} Chance
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: '16px', alignItems: 'center' }}>
-                {/* You Give */}
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>YOU GIVE</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {bestTrade.give?.map((item, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className={`pos-badge pos-${item.position?.toLowerCase() || 'pick'}`} style={{ fontSize: '0.65rem' }}>
-                          {item.position || 'PICK'}
-                        </span>
-                        <span style={{ fontSize: '0.875rem' }}>{item.name || `${item.year} Rd ${item.round}`}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '8px' }}>
-                    Total: {bestTrade.giveValue?.toLocaleString() || 0}
-                  </div>
-                </div>
-
-                {/* Arrow */}
-                <div style={{ fontSize: '1.5rem', color: 'var(--accent)' }}>⇄</div>
-
-                {/* You Get */}
-                <div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>YOU GET</div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {bestTrade.get?.map((item, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span className={`pos-badge pos-${item.position?.toLowerCase() || 'pick'}`} style={{ fontSize: '0.65rem' }}>
-                          {item.position || 'PICK'}
-                        </span>
-                        <span style={{ fontSize: '0.875rem' }}>{item.name || `${item.year} Rd ${item.round}`}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--success)', marginTop: '8px' }}>
-                    Total: {bestTrade.getValue?.toLocaleString() || 0}
-                  </div>
-                </div>
-              </div>
-
-              {/* Why This Trade */}
-              {bestTrade.reason && (
-                <div style={{ marginTop: '16px', padding: '12px', background: 'var(--bg-secondary)', borderRadius: '8px', fontSize: '0.875rem' }}>
-                  <strong>Why:</strong> {bestTrade.reason}
-                </div>
-              )}
-
-              <div style={{ marginTop: '16px', display: 'flex', gap: '8px' }}>
-                <button
-                  className="btn btn-primary"
-                  style={{ flex: 1 }}
-                  onClick={() => setPage(PAGES.TRADEFINDER)}
-                >
-                  🔍 Find More Trades
-                </button>
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setSelectedOpponentId(bestTrade.opponent?.rosterId);
-                    setPage(PAGES.TRADE);
-                  }}
-                >
-                  Build This Trade
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
-              <p>No trade opportunities found right now.</p>
-              <button className="btn btn-primary" style={{ marginTop: '12px' }} onClick={() => setPage(PAGES.TRADEFINDER)}>
-                🔍 Open Trade Finder
-              </button>
-            </div>
-          )}
+        <div className="card-body" style={{ padding: '20px' }}>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>
+            Use the Trade Finder to discover the best trades across your entire league.
+          </p>
+          <button
+            className="btn btn-primary btn-lg"
+            style={{ width: '100%' }}
+            onClick={() => setPage(PAGES.TRADEFINDER)}
+          >
+            🔍 Find Best Trades
+          </button>
         </div>
       </div>
 

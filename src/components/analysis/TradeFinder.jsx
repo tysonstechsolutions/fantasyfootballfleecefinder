@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../App';
 import {
   findAllTrades,
-  filterTrades,
+  analyzeNeeds,
   getAcceptanceLikelihood,
   getTradeReason
 } from '../../services/tradeFinder';
@@ -12,26 +12,42 @@ function TradeFinder() {
   const [trades, setTrades] = useState([]);
   const [loading, setLoading] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
-
-  // Filters
-  const [filters, setFilters] = useState({
-    positions: [],
-    excludePlayers: [],
-    minValue: null,
-    maxValue: null,
-    minAcceptance: null
-  });
+  const [myNeeds, setMyNeeds] = useState(null);
+  const [selectedOpponent, setSelectedOpponent] = useState('all');
 
   const leagueSettings = useMemo(() => ({
     totalRosters: league?.rosters?.length || 12
   }), [league]);
 
+  // Get unique opponents from trades
+  const opponents = useMemo(() => {
+    if (trades.length === 0) return [];
+    const opponentMap = new Map();
+    trades.forEach(t => {
+      if (!opponentMap.has(t.opponent.rosterId)) {
+        opponentMap.set(t.opponent.rosterId, t.opponent);
+      }
+    });
+    return Array.from(opponentMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [trades]);
+
+  // Filter trades by selected opponent
+  const filteredTrades = useMemo(() => {
+    if (selectedOpponent === 'all') return trades;
+    return trades.filter(t => t.opponent.rosterId === parseInt(selectedOpponent));
+  }, [trades, selectedOpponent]);
+
   const handleFindTrades = () => {
     setLoading(true);
     setExpandedIndex(null);
+    setSelectedOpponent('all');
 
     // Run the trade finder algorithm
     setTimeout(() => {
+      // First analyze my needs
+      const needs = analyzeNeeds(myRoster);
+      setMyNeeds(needs);
+
       const allTrades = findAllTrades(
         myRoster,
         league.rosters,
@@ -40,19 +56,6 @@ function TradeFinder() {
       setTrades(allTrades);
       setLoading(false);
     }, 100);
-  };
-
-  const filteredTrades = useMemo(() => {
-    return filterTrades(trades, filters);
-  }, [trades, filters]);
-
-  const handleTogglePosition = (position) => {
-    setFilters(prev => ({
-      ...prev,
-      positions: prev.positions.includes(position)
-        ? prev.positions.filter(p => p !== position)
-        : [...prev.positions, position]
-    }));
   };
 
   const handleBuildTrade = (trade) => {
@@ -92,115 +95,107 @@ function TradeFinder() {
         </div>
       </div>
 
-      {/* Filters */}
-      {trades.length > 0 && (
-        <div className="card" style={{ marginBottom: '20px' }}>
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>Filters</h3>
-            <button
-              className="btn btn-ghost"
-              style={{ fontSize: '0.875rem', padding: '4px 12px' }}
-              onClick={() => setFilters({ positions: [], excludePlayers: [], minValue: null, maxValue: null, minAcceptance: null })}
-            >
-              Clear All
-            </button>
+      {/* Your Roster Needs - Show after finding trades */}
+      {myNeeds && (
+        <div className="card" style={{ marginBottom: '20px', border: '2px solid var(--accent)' }}>
+          <div className="card-header" style={{ background: 'linear-gradient(135deg, var(--accent) 0%, #6366f1 100%)', color: 'white' }}>
+            <h3>Your Roster Needs</h3>
           </div>
-          <div className="card-body">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Position Targets */}
-              <div>
-                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>
-                  Target Positions
-                </label>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {['QB', 'RB', 'WR', 'TE'].map(pos => (
-                    <button
-                      key={pos}
-                      className={`pos-badge pos-${pos.toLowerCase()}`}
-                      onClick={() => handleTogglePosition(pos)}
-                      style={{
-                        cursor: 'pointer',
-                        opacity: filters.positions.includes(pos) ? 1 : 0.4,
-                        border: filters.positions.includes(pos) ? '2px solid currentColor' : '1px solid currentColor',
-                        padding: '6px 12px',
-                        fontSize: '0.8125rem'
-                      }}
-                    >
-                      {pos}
-                    </button>
-                  ))}
-                </div>
-              </div>
+          <div className="card-body" style={{ padding: '16px' }}>
+            <p style={{ color: 'var(--text-secondary)', marginBottom: '12px', fontSize: '0.875rem' }}>
+              Trades are automatically prioritized to address these needs:
+            </p>
 
-              {/* Value Range */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>
-                    Min Value Received
-                  </label>
-                  <input
-                    type="number"
-                    value={filters.minValue || ''}
-                    onChange={(e) => setFilters(prev => ({ ...prev, minValue: e.target.value ? parseInt(e.target.value) : null }))}
-                    placeholder="e.g. 5000"
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)',
-                      color: 'var(--text-primary)',
-                      fontFamily: 'var(--font-sans)'
-                    }}
-                  />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}>
+              {/* Critical Needs */}
+              {myNeeds.needs.critical.length > 0 && (
+                <div style={{ flex: '1 1 200px' }}>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: 'var(--red)',
+                    marginBottom: '8px',
+                    textTransform: 'uppercase'
+                  }}>
+                    Critical Needs
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {myNeeds.needs.critical.map((need, i) => (
+                      <span
+                        key={i}
+                        className={`pos-badge pos-${need.position?.toLowerCase()}`}
+                        style={{ padding: '6px 12px', fontWeight: 600 }}
+                      >
+                        {need.position} ({need.reason})
+                      </span>
+                    ))}
+                  </div>
                 </div>
+              )}
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>
-                    Max Value Given
-                  </label>
-                  <input
-                    type="number"
-                    value={filters.maxValue || ''}
-                    onChange={(e) => setFilters(prev => ({ ...prev, maxValue: e.target.value ? parseInt(e.target.value) : null }))}
-                    placeholder="e.g. 8000"
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)',
-                      color: 'var(--text-primary)',
-                      fontFamily: 'var(--font-sans)'
-                    }}
-                  />
+              {/* Moderate Needs */}
+              {myNeeds.needs.moderate.length > 0 && (
+                <div style={{ flex: '1 1 200px' }}>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: '#f59e0b',
+                    marginBottom: '8px',
+                    textTransform: 'uppercase'
+                  }}>
+                    Moderate Needs
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {myNeeds.needs.moderate.map((need, i) => (
+                      <span
+                        key={i}
+                        className={`pos-badge pos-${need.position?.toLowerCase()}`}
+                        style={{ padding: '6px 12px', opacity: 0.8 }}
+                      >
+                        {need.position} ({need.reason})
+                      </span>
+                    ))}
+                  </div>
                 </div>
+              )}
 
-                <div>
-                  <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>
-                    Min Acceptance Likelihood
-                  </label>
-                  <select
-                    value={filters.minAcceptance || ''}
-                    onChange={(e) => setFilters(prev => ({ ...prev, minAcceptance: e.target.value || null }))}
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)',
-                      color: 'var(--text-primary)',
-                      fontFamily: 'var(--font-sans)'
-                    }}
-                  >
-                    <option value="">All</option>
-                    <option value="low">Low+</option>
-                    <option value="medium">Medium+</option>
-                    <option value="high">High Only</option>
-                  </select>
+              {/* Surplus - Players to Trade Away */}
+              {(myNeeds.surplus.sellable.length > 0 || myNeeds.surplus.expendable.length > 0) && (
+                <div style={{ flex: '1 1 200px' }}>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: 'var(--accent)',
+                    marginBottom: '8px',
+                    textTransform: 'uppercase'
+                  }}>
+                    Trade Chips Available
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {myNeeds.surplus.sellable.slice(0, 3).map((player, i) => (
+                      <span
+                        key={i}
+                        style={{
+                          fontSize: '0.8125rem',
+                          padding: '4px 8px',
+                          background: 'var(--bg-elevated)',
+                          borderRadius: 'var(--radius-sm)',
+                          color: 'var(--text-secondary)'
+                        }}
+                      >
+                        {player.name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
+
+            {myNeeds.needs.critical.length === 0 && myNeeds.needs.moderate.length === 0 && (
+              <p style={{ color: 'var(--accent)', fontWeight: 500 }}>
+                Your roster is well-balanced! Looking for value upgrades...
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -236,35 +231,57 @@ function TradeFinder() {
       )}
 
       {/* Results */}
-      {!loading && filteredTrades.length > 0 && (
+      {!loading && trades.length > 0 && (
         <div>
-          <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
             <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
               {filteredTrades.length} Trade Opportunit{filteredTrades.length === 1 ? 'y' : 'ies'}
+              {selectedOpponent !== 'all' && ` with ${opponents.find(o => o.rosterId === parseInt(selectedOpponent))?.name}`}
             </h3>
+
+            {/* Opponent Filter */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <label style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Filter by:</label>
+              <select
+                value={selectedOpponent}
+                onChange={(e) => {
+                  setSelectedOpponent(e.target.value);
+                  setExpandedIndex(null);
+                }}
+                style={{
+                  padding: '6px 12px',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)',
+                  fontFamily: 'var(--font-sans)',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="all">All Opponents ({trades.length})</option>
+                {opponents.map(opp => {
+                  const count = trades.filter(t => t.opponent.rosterId === opp.rosterId).length;
+                  return (
+                    <option key={opp.rosterId} value={opp.rosterId}>
+                      {opp.name} ({count})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {filteredTrades.map((opportunity, index) => (
               <TradeOpportunityCard
-                key={index}
+                key={`${opportunity.opponent.rosterId}-${index}`}
                 opportunity={opportunity}
                 isExpanded={expandedIndex === index}
                 onToggleExpand={() => setExpandedIndex(expandedIndex === index ? null : index)}
                 onBuildTrade={handleBuildTrade}
               />
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* No Results After Filtering */}
-      {!loading && trades.length > 0 && filteredTrades.length === 0 && (
-        <div className="card">
-          <div className="card-body" style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <p style={{ color: 'var(--text-muted)' }}>
-              No trades match your filters. Try adjusting your criteria.
-            </p>
           </div>
         </div>
       )}

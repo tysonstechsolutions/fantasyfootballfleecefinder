@@ -69,6 +69,27 @@ export async function getAllTrades(leagueId) {
   return trades;
 }
 
+/**
+ * Get pending/incoming trade offers for a specific roster
+ * Sleeper stores pending trades as transactions with status "pending"
+ */
+export async function getPendingTrades(leagueId) {
+  // Fetch transactions from week 0 (offseason) and current weeks
+  const weeks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+
+  const allTransactions = await Promise.all(
+    weeks.map(w => getTransactions(leagueId, w).catch(() => []))
+  );
+
+  // Filter for pending trades (status === 'pending')
+  const pendingTrades = allTransactions
+    .flat()
+    .filter(t => t.type === 'trade' && t.status === 'pending')
+    .sort((a, b) => b.created - a.created);
+
+  return pendingTrades;
+}
+
 export async function getPlayers() {
   if (playersCache) return playersCache;
 
@@ -274,5 +295,6 @@ export default {
   getFullLeagueData,
   getPlayers,
   getAllTrades,
+  getPendingTrades,
   detectLeagueSettings
 };
